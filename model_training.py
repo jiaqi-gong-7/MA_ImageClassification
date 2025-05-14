@@ -1,82 +1,152 @@
 import tensorflow as tf
-from tensorflow.keras.applications import ResNet50  # type: ignore
-from tensorflow.keras import layers, models   # type: ignore
-from tensorflow.keras.optimizers import Adam  # type: ignore
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint  # type: ignore
-from tensorflow.keras.optimizers.schedules import ExponentialDecay  # type: ignore
+from tensorflow.keras.applications import EfficientNetB3, ResNet50, DenseNet121, EfficientNetB0  # type: ignore
+from tensorflow.keras import layers, models, regularizers # type: ignore
+from tensorflow.keras.optimizers import Adam # type: ignore
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint # type: ignore
+from tensorflow.keras.optimizers.schedules import CosineDecayRestarts # type: ignore
+from sklearn.utils.class_weight import compute_class_weight 
+import numpy as np 
+import matplotlib.pyplot as plt
+import os
 
+# # 开启混合精度 & XLA 加速
+tf.keras.mixed_precision.set_global_policy('mixed_float16')
+tf.config.optimizer.set_jit(True)
+AUTOTUNE = tf.data.AUTOTUNE
+
+# 设置随机种子
+def set_random_seed(seed=42):
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+
+set_random_seed(42)
+
+
+# 构建改进后的模型
 def build_model(input_shape, num_classes):
-    # Load pre-trained ResNet50 model
-    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
-    base_model.trainable = False  # Freeze the base model initially
+    base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=input_shape)
+    #base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
+    #base_model = DenseNet121(weights='imagenet', include_top=False, input_shape=input_shape)
+    base_model.trainable = False  # 冻结基底模型
 
-    # Add custom classification layers
     model = models.Sequential([
+        layers.Input(shape=input_shape),
         base_model,
+
+        # 添加更多的卷积层进行特征提取
+        layers.Conv2D(512, (1, 1), use_bias=False),
+        layers.BatchNormalization(),
+        layers.Activation('relu'),
+
+        layers.Conv2D(256, (3, 3), padding='same', use_bias=False),
+        layers.BatchNormalization(),
+        layers.Activation('relu'),
+        
         layers.GlobalAveragePooling2D(),
-        layers.BatchNormalization(),
-        layers.Dense(256, activation='relu'),
-        layers.Dropout(0.5),
-        layers.BatchNormalization(),
+        
+        layers.Dense(512, activation='relu'),
+        layers.Dropout(0.3),  # 提高 Dropout 比例防止过拟合
         layers.Dense(num_classes, activation='softmax')
     ])
+    
     return model
 
-def train_model(model, train_generator, val_generator, batch_size=32, epochs=10, fine_tune=False, fine_tune_epochs=5):
-    # Define the learning rate schedule
-    lr_schedule = ExponentialDecay(
-        initial_learning_rate=0.001,
-        decay_steps=5,
-        decay_rate=0.9,
-        staircase=False
-    )
+def plot_training_history(history, stage='initial'):
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(1, len(acc) + 1)
 
-    # Callbacks for early stopping and model checkpointing
-    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-    model_checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, acc, label='Train Acc')
+    plt.plot(epochs, val_acc, label='Val Acc')
+    plt.title(f'{stage.capitalize()} Training Accuracy')
+    plt.legend()
 
-    # Compile the model
-    model.compile(optimizer=Adam(learning_rate=lr_schedule), 
-                  loss='categorical_crossentropy', 
-                  metrics=['accuracy'])
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, loss, label='Train Loss')
+    plt.plot(epochs, val_loss, label='Val Loss')
+    plt.title(f'{stage.capitalize()} Training Loss')
+    plt.legend()
 
-    # Train the model
-    print("Training the model with frozen base layers...")
+    plt.tight_layout()
+    os.makedirs('results/reports', exist_ok=True)
+    plt.savefig(f'results/reports/training_curves_{stage}.png')
+    plt.close()
+
+
+# 训练与微调
+def train_model(model, train_generator, val_generator, num_train_samples, num_val_samples, 
+                batch_size=32, epochs=20, fine_tune=True, fine_tune_epochs=10):
+    
+    steps_per_epoch = num_train_samples // batch_size + int(num_train_samples % batch_size != 0)
+    validation_steps = num_val_samples // batch_size + int(num_val_samples % batch_size != 0)
+    
+    lr_schedule = CosineDecayRestarts(initial_learning_rate=0.0003, first_decay_steps=steps_per_epoch * 2)
+    optimizer = Adam(learning_rate=lr_schedule)
+
+    loss_fn = 'categorical_crossentropy'  
+    
+    model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
+
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    #model_checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True, save_format='keras')
+    model_checkpoint = ModelCheckpoint(
+    #filepath='best_model_EfficientNetB0.h5',  # 改为 .h5
+    filepath='best_model_EfficientNetB3_1.h5',
+    monitor='val_loss',
+    save_best_only=True
+)
+
+    y_train_full = np.concatenate([np.argmax(labels.numpy(), axis=1) for _, labels in train_generator])
+    class_weights = compute_class_weight('balanced', classes=np.unique(y_train_full), y=y_train_full)
+    class_weights_dict = {i: weight for i, weight in enumerate(class_weights)}
+
+    # 初始训练
     history = model.fit(
         train_generator,
-        steps_per_epoch=train_generator.samples // batch_size,
+        steps_per_epoch=steps_per_epoch,
         validation_data=val_generator,
-        validation_steps=val_generator.samples // batch_size,
+        validation_steps=validation_steps,
         epochs=epochs,
-        callbacks=[early_stopping, model_checkpoint]
+        callbacks=[early_stopping, model_checkpoint],
+        class_weight=class_weights_dict
     )
 
-    # Fine-tuning if specified
+    plot_training_history(history, stage='initial')
+
+    # 微调模型
     if fine_tune:
         print("Fine-tuning the model...")
-        # Unfreeze the last few layers of the base model for fine-tuning
-        base_model = model.layers[0]  # Get the base ResNet50 model
-        for layer in base_model.layers[:-10]:  # Unfreeze the last 10 layers, adjust as necessary
+        
+        # 逐步解冻部分层
+        for layer in model.layers[0].layers[:-200]:  # 只解冻最后 200 层
             layer.trainable = False
-        for layer in base_model.layers[-10:]:  # Unfreeze the last few layers
+        for layer in model.layers[0].layers[-200:]:
             layer.trainable = True
 
-        # Recompile the model with a lower learning rate for fine-tuning
-        model.compile(optimizer=Adam(learning_rate=1e-5),  # Lower learning rate for fine-tuning
-                      loss='categorical_crossentropy', 
-                      metrics=['accuracy'])
+        fine_tune_optimizer = Adam(learning_rate=1e-5)
+        
+        model.compile(optimizer=fine_tune_optimizer, loss=loss_fn, metrics=['accuracy'])
 
-        # Continue training with fine-tuning
         history_fine = model.fit(
             train_generator,
-            steps_per_epoch=train_generator.samples // batch_size,
+            steps_per_epoch=steps_per_epoch,
             validation_data=val_generator,
-            validation_steps=val_generator.samples // batch_size,
+            validation_steps=validation_steps,
             epochs=fine_tune_epochs,
-            callbacks=[early_stopping, model_checkpoint]
+            callbacks=[early_stopping, model_checkpoint],
+            class_weight=class_weights_dict
         )
-        return history, history_fine  # Return history for both stages
 
-    return history  # Return history if no fine-tuning
+        plot_training_history(history_fine, stage='finetune')
+        return {'initial_training': history, 'fine_tuning': history_fine}
 
+    return {'initial_training': history}
 
+MODEL_PATH = "best_model_EfficientNetB3_1.h5"
+def save_model(model):
+    model.save(MODEL_PATH)
+    print(f"Model saved to {MODEL_PATH}")

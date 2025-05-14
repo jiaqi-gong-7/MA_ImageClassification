@@ -1,0 +1,21 @@
+# 忽略虚拟环境
+myenv/
+.venv/
+env/
+__pycache__/
+
+# 忽略模型
+*.h5
+*.keras
+*.pt
+*.ckpt
+
+# 忽略图片
+*.jpg
+*.png
+
+# 忽略结果图
+results/
+
+# 忽略数据集
+data/

@@ -1,7 +1,0 @@
-
-        Total Number of Samples: 34
-        Number of Correctly Classified Samples: 7
-        Number of Misclassified Samples: 27
-        Accuracy: 20.59%
-        Indices of Misclassified Samples: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 28, 29, 32, 33]
-        
