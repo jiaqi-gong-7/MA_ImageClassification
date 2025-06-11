@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# # 开启混合精度 & XLA 加速
+# # Enable mixed precision & XLA acceleration
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 tf.config.optimizer.set_jit(True)
 AUTOTUNE = tf.data.AUTOTUNE
 
-# 设置随机种子
+# Setting the random seed
 def set_random_seed(seed=42):
     np.random.seed(seed)
     tf.random.set_seed(seed)
@@ -22,18 +22,18 @@ def set_random_seed(seed=42):
 set_random_seed(42)
 
 
-# 构建改进后的模型
+# Building model
 def build_model(input_shape, num_classes):
-    base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=input_shape)
-    #base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
+    #base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=input_shape)
+    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
     #base_model = DenseNet121(weights='imagenet', include_top=False, input_shape=input_shape)
-    base_model.trainable = False  # 冻结基底模型
+    base_model.trainable = False  # Freeze base model
 
     model = models.Sequential([
         layers.Input(shape=input_shape),
         base_model,
 
-        # 添加更多的卷积层进行特征提取
+        # Add more convolutional layers for feature extraction
         layers.Conv2D(512, (1, 1), use_bias=False),
         layers.BatchNormalization(),
         layers.Activation('relu'),
@@ -45,7 +45,7 @@ def build_model(input_shape, num_classes):
         layers.GlobalAveragePooling2D(),
         
         layers.Dense(512, activation='relu'),
-        layers.Dropout(0.3),  # 提高 Dropout 比例防止过拟合
+        layers.Dropout(0.3),  # Increase the Dropout ratio to prevent overfitting
         layers.Dense(num_classes, activation='softmax')
     ])
     
@@ -77,7 +77,7 @@ def plot_training_history(history, stage='initial'):
     plt.close()
 
 
-# 训练与微调
+# Training and fine-tuning
 def train_model(model, train_generator, val_generator, num_train_samples, num_val_samples, 
                 batch_size=32, epochs=20, fine_tune=True, fine_tune_epochs=10):
     
@@ -94,8 +94,8 @@ def train_model(model, train_generator, val_generator, num_train_samples, num_va
     early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
     #model_checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True, save_format='keras')
     model_checkpoint = ModelCheckpoint(
-    #filepath='best_model_EfficientNetB0.h5',  # 改为 .h5
-    filepath='best_model_EfficientNetB3_1.h5',
+    filepath='best_model_ResNet50.h5',  
+    #filepath='best_model_EfficientNetB3_1.h5',
     monitor='val_loss',
     save_best_only=True
 )
@@ -104,7 +104,7 @@ def train_model(model, train_generator, val_generator, num_train_samples, num_va
     class_weights = compute_class_weight('balanced', classes=np.unique(y_train_full), y=y_train_full)
     class_weights_dict = {i: weight for i, weight in enumerate(class_weights)}
 
-    # 初始训练
+    # Initial training
     history = model.fit(
         train_generator,
         steps_per_epoch=steps_per_epoch,
@@ -117,12 +117,12 @@ def train_model(model, train_generator, val_generator, num_train_samples, num_va
 
     plot_training_history(history, stage='initial')
 
-    # 微调模型
+    # Fine-tuning the model
     if fine_tune:
         print("Fine-tuning the model...")
         
-        # 逐步解冻部分层
-        for layer in model.layers[0].layers[:-200]:  # 只解冻最后 200 层
+        # Thaw some layers gradually
+        for layer in model.layers[0].layers[:-200]:  # Unfreeze only the last 200 layers
             layer.trainable = False
         for layer in model.layers[0].layers[-200:]:
             layer.trainable = True

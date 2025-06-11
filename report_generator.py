@@ -13,7 +13,7 @@ def generate_report(test_acc, classification_rep, conclusion_text, cm_path, roc_
     pdf.ln(10)
     pdf.multi_cell(0, 10, f"Model accuracy on test set: {test_acc*100:.2f}%\n")
 
-    # 红绿灯机制说明图例（含彩色圆点与文字说明）
+    # Illustration of the traffic light mechanism (with colored dots and text description)
     if class_names:
         color_map = {
             "complete product": ((0, 200, 0), "GREEN (Qualified)"),

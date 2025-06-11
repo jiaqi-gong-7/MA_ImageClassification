@@ -9,11 +9,11 @@ from tensorflow.keras.applications.resnet50 import preprocess_input
 import os
 import matplotlib.pyplot as plt
 
-# 模型路径
+# Model Path
 MODEL_PATH = 'best_model_ResNet50_1.h5'
 model = tf.keras.models.load_model(MODEL_PATH)
 
-# 类别与质量映射
+# Category and Quality Mapping
 CLASS_NAMES = ['Complete product', 'Missing CD', 'No ropes', 'No strain relief', 'Valid pcb']
 QUALITY_LABELS = {
     'Complete product': ('GREEN', 'Qualified Product'),
@@ -23,23 +23,23 @@ QUALITY_LABELS = {
     'No strain relief': ('RED', 'Defective Product')
 }
 
-# 加载并预处理图像
+# Load and preprocess the image
 def load_and_preprocess_image(img, target_size=(300, 300)):
     img = img.resize(target_size)
 
-    # 图像增强（可选）
+    # Image enhancement 
     img = ImageEnhance.Contrast(img).enhance(1.5)
     img = ImageEnhance.Sharpness(img).enhance(2.0)
 
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
 
-    # 使用 ResNet50 的预处理方式（标准化为 [-123.68, -116.78, -103.94] 的均值）
+    # Use ResNet50 preprocessing (normalized to the mean of [-123.68, -116.78, -103.94])
     img_array = preprocess_input(img_array)
 
     return img_array, img
 
-# 主函数 - 预测图像质量
+# Main function - predicting image quality
 def predict_image_quality_from_camera(frame):
     img_tensor, original_img = load_and_preprocess_image(frame)
     prediction = model.predict(img_tensor)[0]
@@ -53,7 +53,7 @@ def predict_image_quality_from_camera(frame):
         print(f"{CLASS_NAMES[i]:<18}: {prob:.4f}")
     print(f"\nFinal Prediction: {class_name} ({confidence:.2f}), Quality: {quality} [{color}]")
 
-    # 图像结果可视化
+    # Image results visualization
     fig = plt.figure(figsize=(8, 14), constrained_layout=True)
     gs = fig.add_gridspec(3, 1, height_ratios=[1.2, 5, 2])
 
@@ -85,15 +85,15 @@ def predict_image_quality_from_camera(frame):
 
     print(f"Prediction result saved to: {save_path}")
 
-    # 在 GUI 中显示结果
+    # Displaying results in the GUI
     result_label.config(text=f"Prediction: {class_name}\nConfidence: {confidence:.2f}\nQuality: {quality} [{color}]")
     result_img = ImageTk.PhotoImage(original_img)
     img_label.config(image=result_img)
     img_label.image = result_img
 
-# 摄像头捕捉函数
+# Camera capture function
 def capture_image_from_camera():
-    cap = cv2.VideoCapture(0)  # 0代表默认摄像头
+    cap = cv2.VideoCapture(0)  # 0 represents the default camera
 
     if not cap.isOpened():
         messagebox.showerror("Error", "Could not open camera.")
@@ -106,39 +106,39 @@ def capture_image_from_camera():
             messagebox.showerror("Error", "Failed to capture image.")
             break
 
-        # 显示实时视频流
+        # Display live video stream
         cv2.imshow("Real-time Camera", frame)
 
-        # 每次更新 GUI
+        #  Update the GUI
         root.update()
 
-        if capture_button_clicked:  # 触发拍照
+        if capture_button_clicked:  # Trigger photo taking
             print("Capturing image...")
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
             predict_image_quality_from_camera(pil_image)
 
-        elif quit_button_clicked:  # 退出程序
+        elif quit_button_clicked:  # Exit the program
             print("Exiting...")
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
-# GUI 初始化
+# GUI initialization
 root = tk.Tk()
 root.title("AI Camera Prediction")
 root.geometry("600x800")
 
-# 摄像头图像显示框
+# Camera image display frame
 img_label = tk.Label(root)
 img_label.pack()
 
-# 预测结果显示框
+# Prediction result display box
 result_label = tk.Label(root, text="Prediction: None\nConfidence: 0.00\nQuality: None", font=("Helvetica", 14))
 result_label.pack()
 
-# 按钮
+# Button
 capture_button_clicked = False
 quit_button_clicked = False
 
@@ -158,7 +158,7 @@ capture_button.pack(pady=20)
 quit_button = tk.Button(root, text="Quit", command=on_quit_button_click)
 quit_button.pack(pady=20)
 
-# 启动 GUI
-root.after(1, capture_image_from_camera)  # 启动摄像头线程
+# Launch the GUI
+root.after(1, capture_image_from_camera)  # Start the camera thread
 
 root.mainloop()

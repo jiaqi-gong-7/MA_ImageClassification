@@ -10,7 +10,7 @@ import pandas as pd
 REPORT_DIR = "results/reports"
 os.makedirs(REPORT_DIR, exist_ok=True)
 
-# 添加红绿灯说明文本生成
+# Added traffic light description text generation
 
 def get_quality_legend_text(class_names):
     color_map = {
@@ -31,7 +31,7 @@ def evaluate_model(model, test_generator, class_names):
     test_loss, test_accuracy = model.evaluate(test_generator, verbose=1)
     print(f"Test accuracy: {test_accuracy:.2f}")
 
-    # 获取预测值和真实值
+    # Get predicted and true values
     y_true = []
     y_pred_prob = model.predict(test_generator, verbose=1)
     y_pred_classes = np.argmax(y_pred_prob, axis=1)
@@ -39,7 +39,7 @@ def evaluate_model(model, test_generator, class_names):
         y_true.extend(tf.argmax(labels, axis=1).numpy())
     y_true = np.array(y_true)
 
-    # 自动寻找 Valid PCB 最佳阈值
+    # Automatically find the best threshold value for Valid PCB
     valid_pcb_index = class_names.index("Valid PCB")
     best_f1 = 0
     best_threshold = 0.5
@@ -53,12 +53,12 @@ def evaluate_model(model, test_generator, class_names):
             best_f1 = f1
             best_threshold = threshold
 
-    # 应用最佳阈值
+    # Applying the best threshold
     for i in range(len(y_pred_prob)):
         if y_pred_classes[i] == valid_pcb_index and y_pred_prob[i][valid_pcb_index] < best_threshold:
             y_pred_classes[i] = np.argsort(y_pred_prob[i])[-2]
 
-    # 混淆矩阵
+    # Confusion Matrix
     cm = confusion_matrix(y_true, y_pred_classes)
     fig, ax = plt.subplots(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -71,23 +71,23 @@ def evaluate_model(model, test_generator, class_names):
     plt.savefig(confusion_matrix_path)
     plt.close()
 
-    # 分类报告
+    # Classification Report
     classification_rep = classification_report(
         y_true, y_pred_classes, target_names=class_names, zero_division=1
     )
     print(classification_rep)
-    legend_text = get_quality_legend_text(class_names)  # 红绿灯文本
+    legend_text = get_quality_legend_text(class_names)  # Traffic light text
 
     report_path = os.path.join(REPORT_DIR, 'evaluation_report.txt')
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(f"Test Accuracy: {test_accuracy:.2f}\n")
         f.write(f"Best Valid PCB Threshold: {best_threshold:.2f}\n\n")
-        f.write(legend_text + "\n\n")  # 插入红绿灯说明
+        f.write(legend_text + "\n\n")  # Insert traffic light instructions
         f.write("Classification Report:\n")
         f.write(classification_rep + "\n")
         f.write(f"\nConfusion Matrix saved at: {confusion_matrix_path}\n")
 
-    # ROC 曲线
+    # ROC Curve
     y_true_bin = label_binarize(y_true, classes=list(range(len(class_names))))
     fpr = dict()
     tpr = dict()
@@ -109,7 +109,7 @@ def evaluate_model(model, test_generator, class_names):
     plt.savefig(roc_path)
     plt.close()
 
-    # 保存预测详情 CSV
+    # Save forecast details to CSV
     prediction_df = pd.DataFrame({
         "TrueLabel": [class_names[i] for i in y_true],
         "Predicted": [class_names[i] for i in y_pred_classes],
