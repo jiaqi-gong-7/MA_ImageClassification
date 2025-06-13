@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageEnhance
 import os
 import json
+import sys 
 
 # Suppress TensorFlow startup logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -34,7 +35,9 @@ def load_and_preprocess_image(img_path, target_size=(300, 300)):
     img_array = preprocess_input(img_array)
     return img_array, img
 
-def predict_and_visualize(img_path):
+def predict_and_visualize():
+    #print(sys.argv[1])
+    img_path = sys.argv[1]
     img_tensor, original_img = load_and_preprocess_image(img_path)
     prediction = model.predict(img_tensor)[0]
     class_index = np.argmax(prediction)
@@ -111,4 +114,4 @@ def predict_and_visualize(img_path):
             print("Invalid input. Correction skipped.")
 
 # Example call
-predict_and_visualize("data/test_samples/img_004.jpg")
+predict_and_visualize()
