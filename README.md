@@ -46,7 +46,7 @@ This repository contains the full implementation of a defect classification syst
 ## ⚠️ Important Notes
 
 - The dataset and trained models are not included in this repository.
-- Please **download the data and saved models separately from the shared Google Drive folder** linked in the project documentation or README footer (to be added manually).
+- Please **download the data and saved models separately from the shared Google Drive folder** linked: https://drive.google.com/drive/folders/1dqNFCJXvo7LHAL_veKCuveQzNF2tH9aJ?usp=sharing (to be added manually).
 - Model files (e.g., `.h5`) and image samples (`.jpg`, `.png`) are excluded via `.gitignore`.
 
 ---
